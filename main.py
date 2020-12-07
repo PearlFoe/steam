@@ -1,4 +1,5 @@
 from steam import *
+from config import *
 
 import datetime
 import openpyxl
@@ -8,120 +9,138 @@ import json
 
 valid_items = []
 valid_data = []
-
+'''
 MAX_PRICE = 0
 MIN_VOLUME = 0
 MIN_PROFIT = 0
-
-def get_valid_items_by_price_filter():
-	page = 0
+'''
+def get_valid_items_by_price_filter(session):
+	page = 75
 	while True:
 		flag = False
 		items = None
 
 		while True:
 			try:
-				items = item_list(page)
+				items = get_item_list(session=session, page_number=page)
 				break
 			except Exception:
 				print('got ban, waiting 3 min')
-				time.sleep(180)
+				time.sleep(BAN_SLEEP_DELAY)
 
 		for item in items:
-			if item["sell_price"] <= MAX_PRICE and item["sell_price"] != 0:
-				print(item['name'] ,item["sell_price"])
-				#print(item['name'])
+			if item["sell_price"] <= MAX_PRICE:
 				flag = True
-				valid_items.append(item)
-			elif item["sell_price"] == 0:
-				flag = True
+				if item['asset_description']['tradable'] == 1:# and item['asset_description']['marketable'] == 1:
+					try:
+						if item['asset_description']['marketable'] == 1:
+							print(item['asset_description']['market_hash_name'], item["sell_price_text"])
+
+							valid_items.append(item)
+					except Exception:
+						pass
 
 		#print(items[0]['name'])
 		if not flag:
-			time.sleep(10)
+			time.sleep(SLEEP_DELAY)
+			break
+		if page >= 90:
 			break
 
 		page += 1
 		print(f'page {page}\n')
-		time.sleep(10)
+		time.sleep(SLEEP_DELAY)
 		
-def get_valid_items_by_volume_filter():
+def get_valid_items_by_volume_filter(session):
 	for item in valid_items:
 		app_id = item['asset_description']['appid']
-		name = item['name']
-		data = get_item_data(app_id, name)
+		name = item['asset_description']['market_hash_name']
 		volume = 0
+		flag = None
+		data = None
+	
+		while True:
+			data = get_item_data(session=session, app_id=app_id, item_name=name)
+			if not data:
+				if not flag:
+					flag = True
+				else:
+					continue
+				print('waiting')
+				time.sleep(BAN_SLEEP_DELAY)
+			else:
+				break
+
 		try:
-			volume = int(ata['volume'].replace(',',''))
+			volume = int(data['volume'].replace(',',''))
 		except:
 			valid_items.remove(item)
-			time.sleep(3)
+			time.sleep(SLEEP_DELAY)
 			continue
 
 		if volume < MIN_VOLUME:
 			valid_items.remove(item)
-		time.sleep(3)
+		time.sleep(SLEEP_DELAY)
 
-def get_valid_items_by_profit_filter():
+def get_valid_items_by_profit_filter(session):
 	for item in valid_items:
 		app_id = item['asset_description']['appid']
-		name = item['name']
+		name = item['asset_description']['market_hash_name']
+		histogram = None
+		flag = False
 
-		histogram = get_item_price_histogram(app_id, name)
-		sell_info = None
-		buy_info = None
+		while True:
+			histogram = get_item_price_histogram(session=session,app_id=app_id, item_name=name)
+			if not histogram:
+				if not flag:
+					flag = True
+				else:
+					continue
+				print('waiting')
+				time.sleep(BAN_SLEEP_DELAY)
+			else:
+				break
+
+		sell_price = None
+		buy_price = None
 		try:
-			buy_info = int(histogram['highest_buy_order'])
-			sell_info = int(histogram['lowest_sell_order'])
+			buy_price = int(histogram['highest_buy_order'])
+			sell_price = int(histogram['lowest_sell_order'])
 		except Exception:
 			continue
-		
+		else:
+			biggest_counter = 0
+			for counter, i in enumerate(histogram['buy_order_graph']):
+				if int(i[1]) > biggest_counter:
+					biggest_counter = int(i[1])
+					if counter != 0: 
+						buy_price = float(histogram['buy_order_graph'][counter - 1][0])
 
-		percent = ((sell_info - sell_info * 0.13 - buy_info)/sell_info) * 100
+				if counter + 1 >= DEPTH:
+					break
+
+			biggest_counter = 0
+			for counter, i in enumerate(histogram['sell_order_graph']):
+				if int(i[1]) > biggest_counter:
+					biggest_counter = int(i[1])
+					if counter < len(histogram['sell_order_graph']): 
+						sell_price = float(histogram['sell_order_graph'][counter + 1][0])
+
+				if counter + 1 >= DEPTH:
+					break
+
+		print(name, buy_price, sell_price)
+
+		percent = ((sell_price - sell_price * 0.13 - buy_price)/sell_price) * 100
 
 		if percent >= MIN_PROFIT:
 			#valid_items.remove(item)
-			time.sleep(3)
-			valid_data.append([name, sell_info, buy_info, percent])
+			time.sleep(SLEEP_DELAY)
+			valid_data.append([name, sell_price, buy_price, percent])
 			continue
-		time.sleep(3)
+		time.sleep(SLEEP_DELAY)
 
 
-		'''
-		try:
-			buy_info = histogram['buy_order_graph'][:15]
-			sell_info = histogram['sell_order_graph'][:15]
-		except:
-			continue
-		
-		buy_summ = 0
-		sell_sum = 0
-		if len(sell_info) == 0 or len(buy_info) == 0:
-			continue
-
-		if len(sell_info) <= len(buy_info):
-			for i in range(len(sell_info)):
-				buy_summ += buy_info[i][0]
-				sell_sum += sell_info[i][0]
-		else:
-			for i in range(len(buy_info)):
-				buy_summ += buy_info[i][0]
-				sell_sum += sell_info[i][0]
-
-
-		midle_buy_price = buy_summ/len(buy_info)
-		midle_sell_price = sell_sum/len(sell_info)
-
-		percent = ((midle_sell_price - midle_sell_price * 0.13 - midle_buy_price)/midle_sell_price) * 100
-		
-
-		if percent >= MIN_PROFIT:
-			valid_items.remove(item)
-			time.sleep(3)
-			valid_data.append([name, midle_sell_price, midle_buy_price, percent])
-			continue
-		time.sleep(3)
-		'''
 def get_settings():
 	with open('config.json', 'r') as f:
 		data = json.load(f)
@@ -134,15 +153,20 @@ def get_settings():
 
 
 def main():
+	session = requests.Session()
+	session.get('https://steamcommunity.com/market/')
+	session.headers.update(headers)
+	session.cookies.update(cookies)
 
-	get_settings()
+	#get_settings()
 
 	print('Started')
-	get_valid_items_by_price_filter()
+	get_valid_items_by_price_filter(session=session)
 	print('getting volume', str(len(valid_items)))
-	get_valid_items_by_volume_filter()
+	get_valid_items_by_volume_filter(session=session)
 	print('gettint profit', str(len(valid_items)))
-	get_valid_items_by_profit_filter()
+	get_valid_items_by_profit_filter(session=session)
+	print(f'stored items count {len(valid_data)}')
 
 	wb = openpyxl.Workbook()
 	sheet = wb['Sheet']
