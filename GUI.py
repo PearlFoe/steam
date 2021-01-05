@@ -1,4 +1,5 @@
 from tkinter import *
+import config
 
 class Menu(object):
 	def __init__(self, window):
@@ -12,7 +13,7 @@ class Menu(object):
 		lbl.grid(column=col, row=row, sticky=sticky, padx=padx, pady=pady, ipadx=10)
 
 	def add_entry_window(self, col, row):
-		message = StringVar()
+		message = DoubleVar()
 		txt = Entry(self.window, width=10, textvariable=message)
 		txt.grid(column=col, row=row, sticky='en', pady=18)
 
@@ -64,11 +65,13 @@ class Menu(object):
 		self.var.set(value)
 
 	def is_clicked(self):
-		print(max_price.get())
-		print(game.get())
-		print(min_volume.get())
-		print(min_profit.get())
-		print(param.get())
-		print(sleep_delay.get())
-		print(ban_sleep_delay.get())
-		print(get_min_data_flag.get())
+		'''
+		config.MAX_PRICE = config.MAX_PRICE
+		config.MIN_VOLUME = config.MIN_VOLUME.get()
+		config.MIN_PROFIT = config.MIN_PROFIT.get()
+		config.PARAM = config.PARAM.get()
+		config.SLEEP_DELAY = config.SLEEP_DELAY.get()
+		config.BAN_SLEEP_DELAY = config.BAN_SLEEP_DELAY.get()
+		config.GET_MIN_DATA_FLAG = config.GET_MIN_DATA_FLAG.get()
+		'''
+		self.window.destroy()
