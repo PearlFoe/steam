@@ -31,13 +31,20 @@ def get_item_list(session, page_number, app_id):
 def get_item_data(session, app_id, item_name):
 	url = f'https://steamcommunity.com/market/priceoverview/?appid={app_id}&market_hash_name={item_name}&currency=5'
 	#при обычном запросе без cookies цены тоже возращаются в рублях
-	#data = session.get(url).json()
-	data = requests.get(url).json()
-
+	data = session.get(url).json()
+	#data = requests.get(url).json()
 
 	return data
 
-def get_item_price_histogram(session, app_id, item_name):
+def get_item_price_histogram(session, app_id, item_name, sleep_delay):
+	'''
+	У каждого товара в стиме есть уникальный параметр
+	item_nameid. Только с помощью него можно получить
+	список цен  количество сделок по каждой цене.
+	А вытащить этот параметр на текущий момент возможно
+	только из html страницы товара. Он передается в 
+	качестве параметра функции Market_LoadOrderSpread.
+	'''
 	url = f'https://steamcommunity.com/market/listings/{app_id}/{item_name}'
 	response = requests.get(url)
 	data = bs(response.text, 'lxml').find_all('script')
@@ -47,11 +54,8 @@ def get_item_price_histogram(session, app_id, item_name):
 			item_nameid = str(i).split('Market_LoadOrderSpread')[-1].split('( ')[-1].split(' )')[0]
 			break
 
-	time.sleep(SLEEP_DELAY)
+	time.sleep(sleep_delay)
 	url = f'https://steamcommunity.com/market/itemordershistogram?country=RU&language=russian&currency=5&item_nameid={item_nameid}&two_factor=0&norender=1'
 	data = session.get(url).json()
 
 	return data
-
-
-
